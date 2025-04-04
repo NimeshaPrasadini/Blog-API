@@ -11,6 +11,8 @@ namespace BlogAPI.Models
         public string Title { get; set; }
         [Required]
         public string Content { get; set; }
+        public string? ImageUrl { get; set; }  // Stores the file path/URL
+        public string? VideoUrl { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
 

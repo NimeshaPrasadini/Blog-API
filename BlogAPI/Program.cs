@@ -5,10 +5,13 @@ using BlogAPI.Mappings;
 using BlogAPI.Models;
 using BlogAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -46,6 +49,8 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+
+    c.OperationFilter<SwaggerFileUploadFilter>();
 });
 
 // Add DbContext 
@@ -94,6 +99,11 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddHttpContextAccessor();
 
 
+// Configure file size limit
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 100_000_000; // 100MB limit
+});
 
 var app = builder.Build();
 
@@ -111,6 +121,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Enable static files serving
+app.UseStaticFiles();
+
 
 // Seed database
 using (var scope = app.Services.CreateScope())
@@ -132,3 +146,46 @@ using (var scope = app.Services.CreateScope())
 
 
 app.Run();
+
+public class SwaggerFileUploadFilter : IOperationFilter
+{
+    public void Apply(OpenApiOperation operation, OperationFilterContext context)
+    {
+        //if (context.MethodInfo.DeclaringType.Name == "PostsController" &&
+        //    (context.MethodInfo.GetCustomAttributes(typeof(HttpPostAttribute), true).Any() ||
+        //     context.MethodInfo.GetCustomAttributes(typeof(HttpPutAttribute), true).Any()))
+        if (context.MethodInfo.GetCustomAttributes(typeof(SwaggerFileUploadAttribute), false).Any())
+        {
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Content =
+                {
+                    ["multipart/form-data"] = new OpenApiMediaType
+                    {
+                        Schema = new OpenApiSchema
+                        {
+                            Type = "object",
+                            Properties =
+                            {
+                                ["Title"] = new OpenApiSchema { Type = "string" },
+                                ["Content"] = new OpenApiSchema { Type = "string" },
+                                ["ImageFile"] = new OpenApiSchema
+                                {
+                                    Type = "string",
+                                    Format = "binary",
+                                    Description = "Allowed: JPG, PNG, GIF (max 10MB)"
+                                },
+                                ["VideoFile"] = new OpenApiSchema
+                                {
+                                    Type = "string",
+                                    Format = "binary",
+                                    Description = "Allowed: MP4, MOV (max 50MB)"
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+    }
+}
